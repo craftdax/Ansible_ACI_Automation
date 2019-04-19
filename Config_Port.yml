@@ -1,0 +1,96 @@
+- name: Voeg een nieuw Attachable Access Entity Profile toe
+  aci_aep:
+     host: apic01
+     username: "{{ aci_user }}"
+     password: "{{ aci_password }}"
+     aep: "{{ machine }}-{{ Location }}"
+     state: present
+
+- name: Koppel Physical Domain aan AEP
+  aci_aep_to_domain: &binding_present
+    host: apic01
+    username: "{{ aci_user }}"
+    password: "{{ aci_password }}"
+    aep: "{{ machine }}-{{ Location }}"
+    domain: "PHYSDOM-{{ Location }}"
+    domain_type: phys
+    state: present
+
+- name: Voeg een IFPG toe
+  aci_interface_policy_leaf_policy_group:
+    host: apic01
+    username: "{{ aci_user }}"
+    password: "{{ aci_password }}"
+    lag_type: node
+    policy_group: "{{ machine }}-{{ Location }}-IFPG"
+    link_level_policy: default
+    cdp_policy: default
+    mcp_policy: default
+    lldp_policy: default
+    stp_interface_policy: default
+    egress_data_plane_policing_policy: default
+    ingress_data_plane_policing_policy: default
+    priority_flow_control_policy: default
+    fibre_channel_interface_policy: default
+    slow_drain_policy: default
+    port_channel_policy: default
+    monitoring_policy: default
+    storm_control_interface_policy: default
+    l2_interface_policy: default
+    port_security_policy: default
+    aep: '{{ machine }}-{{ Location }}'
+
+- name: Maak interface policy leaf profile aan
+  aci_interface_policy_leaf_profile:
+    host: apic01
+    username: "{{ aci_user }}"
+    password: "{{ aci_password }}"
+    validate_certs: no
+    leaf_interface_profile: "{{ machine }}-{{ Location }}"
+    state: present
+
+- name: Voeg een Interface Selector toe
+  aci_access_port_to_interface_policy_leaf_profile:
+    host: apic01
+    username: "{{ aci_user }}"
+    password: "{{ aci_password }}"
+    validate_certs: no
+    interface_type: vpc
+    leaf_interface_profile: "{{ machine }}-{{ Location }}"
+    access_port_selector: "{{ machine }}-{{ Location }}-IF"
+    leaf_port_blk: "LEAF_SWITCH_PROF_{{ Location }}"
+    from: "{{ IF_Selector }}"
+    to: "{{ IF_Selector }}"
+    policy_group: "{{ machine }}-{{ Location }}-IFPG"
+    state: present
+
+- name: Koppel Interface Selector aan switch policy Leaf Profile
+  aci_interface_selector_to_switch_policy_leaf_profile:
+    host: apic01
+    username: "{{ aci_user }}"
+    password: "{{ aci_password }}"
+    validate_certs: no
+    leaf_profile: "LEAF_SWITCH_PROF_{{ Location }}"
+    interface_selector: "{{ machine }}-{{ Location }}"
+    state: present
+
+- name: Add IFPG to switch profile in tenant
+  aci_static_binding_to_epg:
+    host: apic01
+    username: "{{ aci_user }}"
+    password: "{{ aci_password }}"
+    validate_certs: no
+    tenant: Tenant-{{ Location }}
+    ap: AP-{{ Location }}
+    epg: "{{ item[0] }}" 
+    encap_id: "{{ item[1] }}"
+    pod_id: 1
+    interface_type: vpc 
+    leafs: " - "
+    interface: "{{ machine }}-{{ Location }}-IFPG"
+    deploy_immediacy: immediate
+    interface_mode: trunk
+    state: present
+  with_nested:
+    - "{{ EPGs }}"
+    - "{{ ENCAPs }}"
